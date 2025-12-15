@@ -10,32 +10,18 @@ library(forcats)
 library(sjPlot)
 library(ggplot2)
 library(ggridges)
-library(grid)
 
-# define functions to drop gridlines from plots ----
-drop_gridlines <- function(x = TRUE, y = TRUE, minor.only = FALSE) {
-  plot <- ggplot2::theme()
-  
-  if (y) {
-    plot <- plot + ggplot2::theme(panel.grid.minor.y = ggplot2::element_blank())
-    if (!minor.only) {
-      plot <- plot + ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
-    }
-  }
-  
-  if (x) {
-    plot <- plot + ggplot2::theme(panel.grid.minor.x = ggplot2::element_blank())
-    if (!minor.only) {
-      plot <- plot + ggplot2::theme(panel.grid.major.x = ggplot2::element_blank())
-    }
-  }
-  
-  return(plot)
+large_font_override <- function() {
+  theme(
+    axis.text = element_text(size = 28),
+    plot.title = element_text(size = 28, face = "bold", hjust = 0),
+    axis.title.x = element_text(size = 28),
+    axis.title.y = element_text(size = 28, angle = 90),
+    legend.text = element_text(size = 28),
+    strip.text.x = element_text(size = 28),
+    strip.text.y = element_text(size = 28)
+  )
 }
-
-# run my_theme.R to set theme for plots ----
-
-source(here("my_theme.R"))
 
 # load study 1 data
 
@@ -44,6 +30,7 @@ Study1 <- read.csv("CDILEXexp1_encrypted.csv")
 # scale age ----
 
 ## rename Age 
+
 
 Study1 <- Study1 %>% 
   rename(UnscaledAge = Age)
@@ -60,9 +47,10 @@ Study1 <- Study1 %>%
 
 Study1 <- filter(Study1, inCDI1 == "yes")
 
+
 # scale ND values
 
-Study1 <- Study1 %>% 
+Study1 <- Study1  %>%
   group_by(Sign) %>%
   slice(1) %>% # choose just one row for each sign
   ungroup() %>% # ungroup so the mean and sd are calculated across all participants
@@ -74,6 +62,7 @@ Study1 <- Study1 %>%
 # keep only "TRUE" and "FALSE" for "comprehends and produces"
 
 Study1 <- filter(Study1, !is.na(ComprehendsAndProduces))
+
 
 # remove reports with fewer than 10 observations
 
@@ -87,6 +76,7 @@ Study1$ComprehendsAndProduces <- as.factor(Study1$ComprehendsAndProduces)
 
 control_settings <- glmerControl(optimizer = "nloptwrap", optCtrl = list(maxfun = 400000))
 
+
 Study1Model <- glmer(
   ComprehendsAndProduces ~ IconicityCDI1 * Age +
     Age * PhonologicalNeighborhoodDensity +
@@ -99,7 +89,7 @@ Study1Model <- glmer(
 
 tab_model(Study1Model, transform = NULL)
 
-# for log-likelihood comparisons ----
+# for log-likelihood comparisons REDO FOR V_1 V_2 ----
 
 Study1Model_noIconicity <- glmer(
   ComprehendsAndProduces ~ 
@@ -129,11 +119,11 @@ Study1Model_noFrequency <- glmer(
   family = binomial, nAGQ = 0, 
   control = glmerControl(optimizer = "nloptwrap"))
 
-iconicity_logtest <- lrtest(Study1Model, Study1Model_noIconicity)
+lrtest(Study1Model, Study1Model_noIconicity)
 
-freq_logtest <- lrtest(Study1Model, Study1Model_noFrequency)
+lrtest(Study1Model, Study1Model_noFrequency)
 
-nd_logtest <- lrtest(Study1Model, Study1Model_noND)
+lrtest(Study1Model, Study1Model_noND)
 
 # run model with unscaled age for plotting ----
 
@@ -151,8 +141,8 @@ Study1Model_unscaledAge <- glmer(
 
 Study1_FreqByAge <- 
   plot_model(Study1Model_unscaledAge, type = "int", terms = "UnscaledAge [all]")[[3]] +
-  my_theme(remove.y.gridlines = TRUE,
-           remove.x.gridlines = TRUE) +
+  my_theme() +
+  large_font_override() +
   labs(y = "Likelihood of Acquisition",
        x = "Age (months)",
        title = NULL) +
@@ -160,7 +150,7 @@ Study1_FreqByAge <-
           color = group_col)  + # tells R to apply linetype differences by group, 
   # which is min and max freq in the model
   guides(color = "none", # suppresses extra legend
-         linetype = guide_legend( element_text("Sign Frequency"),
+         linetype = guide_legend( element_text("Sign Frequency (z score)"),
                                   title.position = "top", 
                                   title.hjust = 0.5,
                                   override.aes = list(linetype = c("solid", "dotted"), # makes lines in legend solid/dotted
@@ -187,7 +177,7 @@ Study1_FreqByAge <-
   ) +
   theme(plot.margin = margin(.5, 3, .2, .2, "cm"), # increases right margin around plot
         legend.title = element_text(size = 28),
-        legend.position = c(.9, 0.045)) 
+        legend.position = c(.79, 0.045)) 
 
 Study1_FreqByAge$layers[[2]]$show.legend <- FALSE 
 
@@ -202,6 +192,7 @@ ggsave("ManuscriptImages/Study1_FreqByAge.png", Study1_FreqByAge, width = 10, he
 Study1_PND <- 
   plot_model(Study1Model, type = "pred", terms = "PhonologicalNeighborhoodDensity [all]") +
   my_theme() +
+  large_font_override() +
   labs(y = "Likelihood of Acquisition",
        x = "Phonological Neighborhood Density \n (z score)",
        title = NULL) +
@@ -213,6 +204,7 @@ Study1_PND <-
   theme(plot.margin = margin(1, 3, .2, .2, "cm"), # increases top margin around plot
         legend.position = c(.8, 0.045))
 
+
 print(Study1_PND)
 
 ggsave("ManuscriptImages/Study1_PND.png", Study1_PND, width = 10, height = 8, dpi = 300)
@@ -221,15 +213,42 @@ ggsave("ManuscriptImages/Study1_PND.png", Study1_PND, width = 10, height = 8, dp
 
 Study2 <- read.csv("CDILEXexp2_encrypted.csv")
 
+
+# count unique EncryptedIDs in Study2 ----
+length(unique(Study2$EncryptedID))
+# count unique EncryptedParticipants in Study2 ----
+length(unique(Study2$EncryptedParticipant))
+# count unique EncryptedParticipants with Deaf Caregivers in Study2 ----
+length(unique(Study2$EncryptedParticipant[Study2$CaregiverHearingStatus == "Deaf Caregivers"]))
+# count unique EncryptedIDs with Deaf Caregivers in Study2 ----
+length(unique(Study2$EncryptedID[Study2$CaregiverHearingStatus == "Deaf Caregivers"]))
+
+
 # remove all reports with fewer than 10 rows ----
 
 Study2 <- Study2 %>%
   group_by(EncryptedID) %>%
   filter(n() >= 10)
 
+
+# count unique EncryptedIDs in Study2 ----
+length(unique(Study2$EncryptedID))
+# count unique EncryptedParticipants in Study2 ----
+length(unique(Study2$EncryptedParticipant))
+#count unique EncryptedIDs with Deaf Caregivers in Study2 ----
+length(unique(Study2$EncryptedID[Study2$CaregiverHearingStatus == "Deaf Caregivers"]))
+# count unique EncryptedParticipants with Deaf Caregivers in Study2 ----
+length(unique(Study2$EncryptedParticipant[Study2$CaregiverHearingStatus == "Deaf Caregivers"]))
+
+# get min and max # of rows per EncryptedID ----
+Study2 %>%
+  group_by(EncryptedID) %>%
+  summarise(num_rows = n()) %>%
+  summarise(min_rows = min(num_rows), max_rows = max(num_rows))
+
 # scale age ----
 
-Study2 <- Study2 %>% 
+Study2 <- Study2 %>%
   rename(UnscaledAge = Age)
 
 Study2 <- Study2 %>%
@@ -239,7 +258,6 @@ Study2 <- Study2 %>%
   mutate(Age = (UnscaledAge - mean(UnscaledAge)) / sd(UnscaledAge)) %>% # normalized Age per unique ID
   select(EncryptedID, Age) %>%  # keep only these columns
   right_join(Study2, by = "EncryptedID")  # join back to full data, copying Age to all rows
-
 
 # scale NeighborhoodDensity values ----
 
@@ -251,6 +269,7 @@ Study2 <- Study2 %>%
            (NeighborhoodDensity - mean(NeighborhoodDensity, na.rm = TRUE)) / sd(NeighborhoodDensity, na.rm = TRUE)) %>% # normalized ND per unique Sign
   select(Sign, PhonologicalNeighborhoodDensity) %>%  # keep only these columns
   right_join(Study2, by = "Sign")  # join back to full data, copying Age to all rows
+
 
 # keep only "TRUE" and "FALSE" for "comprehends and produces" ----
 
@@ -275,10 +294,8 @@ Study2Model <- glmer(
     PhonologicalNeighborhoodDensity * CaregiverHearingStatus * Age  +
     Frequency * CaregiverHearingStatus * Age +
     (1 | Sign) +
-    (1 | EncryptedID) +
-    (0 + Iconicity | EncryptedID) + 
-    (0 + PhonologicalNeighborhoodDensity | EncryptedID) + 
-    (0 + Frequency | EncryptedID),
+    (1 + Iconicity | EncryptedID) +
+    (1 + Frequency | EncryptedID),
   data = Study2,
   family = binomial, nAGQ = 0, 
   control = control_settings)
@@ -295,16 +312,19 @@ emtrends <-
     var = "PhonologicalNeighborhoodDensity",
   )
 
+summary(emtrends, infer = TRUE)
+
 pairs(emtrends)
 
-nd_slopes <- interactions::sim_slopes(Study2Model,
-                                    pred = PhonologicalNeighborhoodDensity,
-                                    modx = CaregiverHearingStatus,
-                                    data = CDILEx,
-                                    r.squared = FALSE,
-                                    johnson_neyman = FALSE)
+slopes <- interactions::sim_slopes(Study2Model,
+                                     pred = PhonologicalNeighborhoodDensity,
+                                     modx = CaregiverHearingStatus,
+                                     data = CDILEx,
+                                     r.squared = FALSE,
+                                     johnson_neyman = FALSE)
 
-print(nd_slopes)
+
+
 
 # age x caregiver plot ----
 
@@ -313,10 +333,8 @@ Study2Model_forCaregiverAgePlot <- glmer(
     PhonologicalNeighborhoodDensity * CaregiverHearingStatus * UnscaledAge  +
     Frequency * CaregiverHearingStatus * UnscaledAge + 
     (1 | Sign) +
-    (1 | EncryptedID) +
-    (0 + Iconicity | EncryptedID) + 
-    (0 + PhonologicalNeighborhoodDensity | EncryptedID) + 
-    (0 + Frequency | EncryptedID),
+    (1 + Iconicity | EncryptedID) +
+    (1 + Frequency | EncryptedID),
   data = Study2,
   family = binomial, nAGQ = 0, 
   control = control_settings)
@@ -324,6 +342,7 @@ Study2Model_forCaregiverAgePlot <- glmer(
 Study2_AgeByCaregiver <- 
   plot_model(Study2Model_forCaregiverAgePlot, type = "int") [[1]] +
   my_theme() +
+  large_font_override() +
   theme(plot.margin = margin(t = 26, r = 15, b = 6, l = 6, unit = "pt"), # make bigger top margin because making a two line title
         legend.position = c(.85, .05),
         # legend.justification = c(.50, .3),
@@ -377,10 +396,8 @@ Study2Model_forCaregiverFreqAgePlot <- glmer(
     UnscaledAge * CaregiverHearingStatus * Iconicity +
     UnscaledAge * CaregiverHearingStatus * PhonologicalNeighborhoodDensity + 
     (1 | Sign) +
-    (1 | EncryptedID) +
-    (0 + Iconicity | EncryptedID) + 
-    (0 + PhonologicalNeighborhoodDensity | EncryptedID) + 
-    (0 + Frequency | EncryptedID),
+    (1 + Iconicity | EncryptedID) +
+    (1 + Frequency | EncryptedID),
   data = Study2,
   family = binomial, nAGQ = 0, 
   control = glmerControl(optimizer = "nloptwrap"))
@@ -388,6 +405,7 @@ Study2Model_forCaregiverFreqAgePlot <- glmer(
 Study2Model_CaregiverFreqAgePlot <- 
   plot_model(Study2Model_forCaregiverFreqAgePlot, type = "int")[[8]] +
   my_theme() +
+  large_font_override() +
   theme(plot.margin = margin(t = 26, r = 14, b = 6, l = 6, unit = "pt"), # make bigger top margin because making a two line title
         legend.position = c(.9, .25),
         legend.key.width = grid::unit(1.5, "cm"), # specifies width of the lines in the legend key
@@ -431,6 +449,54 @@ print(Study2Model_CaregiverFreqAgePlot)
 ggsave("ManuscriptImages/Study2_CaregiverFreqAgePlot.png", 
        Study2Model_CaregiverFreqAgePlot, width = 18, height = 8, dpi = 300)
 
+
+# Study 2 neighborhood density follow-up ----
+
+# merge PhonologicalNeighborhoodDensity from Study 2 into Study 1
+
+BigDatasetND <- Study2 %>%
+  select(Sign, NeighborhoodDensity) %>%
+  distinct()
+
+# rename BigDatasetND$NeighborhoodDensity as Study2NeighborhoodDensity
+
+colnames(BigDatasetND)[colnames(BigDatasetND) == "NeighborhoodDensity"] <- "Study2NeighborhoodDensity"
+
+Study1_withNDfromStudy2 <- Study1 %>%
+  left_join(BigDatasetND, by = "Sign")
+
+# scale Study2NeighborhoodDensity values ----
+Study1_withNDfromStudy2 <- Study1_withNDfromStudy2  %>%
+  group_by(Sign) %>%
+  slice(1) %>% # choose just one row for each sign
+  ungroup() %>% # ungroup so the mean and sd are calculated across all participants
+  mutate(ScaledStudy2NeighborhoodDensity = 
+           (Study2NeighborhoodDensity - mean(Study2NeighborhoodDensity, na.rm = TRUE)) / sd(Study2NeighborhoodDensity, na.rm = TRUE)
+  ) %>% # normalized ND per unique Sign  select(Sign, ScaledStudy2NeighborhoodDensity) %>%  # keep only these columns
+  select(Sign, ScaledStudy2NeighborhoodDensity) %>%  # keep only sign & new scaled ND columns
+  right_join(Study1_withNDfromStudy2, by = "Sign")  # join back to full data, copying Age to all rows
+
+
+Study1_withNDfromStudy2$ComprehendsAndProduces <- as.factor(Study1_withNDfromStudy2$ComprehendsAndProduces)
+
+control_settings <- glmerControl(optimizer = "nloptwrap", optCtrl = list(maxfun = 400000))
+
+
+# run Study1 model with Study2 ND 
+
+Study1_withNDfromStudy2_Model <- glmer(
+  ComprehendsAndProduces ~ IconicityCDI1 * Age +
+    Age * ScaledStudy2NeighborhoodDensity +
+    Age * FrequencyCDI1 + 
+    (1 | Sign) +
+    (1 + IconicityCDI1 + FrequencyCDI1 || EncryptedID),
+  data = Study1_withNDfromStudy2,
+  family = binomial, nAGQ = 0,
+  control = control_settings)
+
+tab_model(Study1_withNDfromStudy2_Model, transform = NULL)
+
+
 # Study 3
 
 # load study 3 data
@@ -450,7 +516,7 @@ Study3$MorphosyntacticCategory <-
   )
 
 
-# remove classes except nouns, predicates, and function words for ASLCDIexp3 ----
+# remove classes except nouns, predicates, and function words for morphosyntactic category comparisons ----
 
 MorphosyntacticCats <-
   Study3 %>% 
@@ -630,14 +696,62 @@ build_category_results_table <- function(data,
       p_fmt = case_when(
         is.na(p) ~ "NA",
         p < 0.001 ~ "< 0.001*",
-        p < 0.0083 ~ paste0(round(p, 3), "*"),
+        p < 0.05 ~ paste0(round(p, 3), "*"),
         TRUE ~ as.character(round(p, 3))
       )
     ) %>%
     ungroup()
   
-  # Wilcoxon between groups for each category
+  # Prepare data needed for decision
+  within_stats <- wilcox_by_group %>%
+    select(group, category, p) %>%
+    tidyr::pivot_wider(names_from = group, values_from = p) %>%
+    rename(p_group1 = all_of(group1), p_group2 = all_of(group2))
+  
+  within_means <- summary_stats %>%
+    select(!!class_sym, !!group_sym, Mean) %>%
+    tidyr::pivot_wider(names_from = !!group_sym, values_from = Mean) %>%
+    rename(mean_group1 = all_of(group1), mean_group2 = all_of(group2))
+  
+  # Join the within-group significance and mean info
+  within_info <- left_join(within_stats, within_means, by = setNames(category_col, "category"))
+  
+  # Define significance threshold (same as in your p_fmt)
+  alpha <- 0.05
+  
+  # Function to check condition per category
+  should_test_between <- function(p1, p2, m1, m2, alpha) {
+    sig1 <- !is.na(p1) && (p1 < alpha)
+    sig2 <- !is.na(p2) && (p2 < alpha)
+    
+    # Condition 1: one significant and the other not
+    cond1 <- sig1 != sig2
+    
+    # Condition 2: both significant but means have opposite signs
+    cond2 <- sig1 && sig2 && ((m1 * m2) < 0)
+    
+    cond1 || cond2
+  }
+  
+  # Wilcoxon between groups for each category, run conditionally
   between_group_wilcox <- map_dfr(categories, function(cat) {
+    info <- within_info %>% filter(category == cat)
+    if (nrow(info) == 0) {
+      return(tibble(category = cat, W_stat = NA_real_, W_p = NA_real_, W_p_fmt = "NA"))
+    }
+    
+    run_test <- should_test_between(
+      p1 = info$p_group1,
+      p2 = info$p_group2,
+      m1 = info$mean_group1,
+      m2 = info$mean_group2,
+      alpha = alpha
+    )
+    
+    if (!run_test) {
+      return(tibble(category = cat, W_stat = NA_real_, W_p = NA_real_, W_p_fmt = "NA"))
+    }
+    
     dat <- data %>% filter(.data[[category_col]] == cat)
     x <- dat %>% filter(.data[[group_col]] == group1) %>% pull(!!score_sym) %>% na.omit()
     y <- dat %>% filter(.data[[group_col]] == group2) %>% pull(!!score_sym) %>% na.omit()
@@ -745,7 +859,6 @@ build_category_results_table(morphosyn_category_proportions,
                              category_col = "CategoryCompared",
                              category_levels = c("Function Word", "Noun", "Predicate"))
 
-
 morphosyn_category_proportions$CaregiverHearingStatus <- factor(
   morphosyn_category_proportions$CaregiverHearingStatus,
   levels = c("Deaf Caregivers", "Hearing Caregivers"),
@@ -759,17 +872,16 @@ ggplot(
       fill = CaregiverHearingStatus)) +
   my_theme() +
   theme(
-    plot.margin = margin(t = 45, r = 6, b = 6, l = 6, unit = "pt"),
+    plot.margin = margin(t = 45, r = 6, b = 6, l = 6, unit = "pt"), 
     legend.position = c(.2, .87),  # Moves legend inside the plot (top left)
     legend.background = element_blank(),  # Removes legend background
-  #   legend.title = element_text(size = 28, hjust = 0),
-  #   legend.text = element_text(size = 28, hjust = 0),
-  #   axis.text = element_text(size = 28),
-  #   axis.title.x = element_text(size = 28),
-  #   axis.title.y = element_text(size = 28),
-  #   strip.text.x = element_text(size = 28),
-  #   strip.text.y = element_text(size = 28)
-  
+    legend.title = element_text(size = 28, hjust = 0),
+    legend.text = element_text(size = 28, hjust = 0),
+    axis.text = element_text(size = 28),
+    axis.title.x = element_text(size = 28),
+    axis.title.y = element_text(size = 28),
+    strip.text.x = element_text(size = 28),
+    strip.text.y = element_text(size = 28)
   ) +  
   geom_density_ridges(jittered_points = TRUE, alpha = 0.7, scale = 0.4,
                       point_size = 4,
@@ -805,7 +917,7 @@ ggsave("ManuscriptImages/MorphosyntacticPlot.png", MorphosyntacticPlot, width = 
 SemanticCats <- Study3 %>%
   filter(!is.na(CDISemanticCategory))
 
-# save order the semantic categories by the number of unique signs in each category
+# save order of semantic categories by the number of unique signs in each category
 
 SemCatOrder <- SemanticCats %>%
   group_by(CDISemanticCategory) %>%
@@ -813,16 +925,8 @@ SemCatOrder <- SemanticCats %>%
   arrange(desc(UniqueSignCount)) %>%
   pull(CDISemanticCategory)
 
-# reverse the order of the categories so that the category with the most unique signs is first
 
-# SemCatOrder <- rev(SemCatOrder)
 
-# order CaregiverHearingStatus so that Deaf Caregivers are first
-
-# SemanticCats$CaregiverHearingStatus <-
-#   factor(SemanticCats$CaregiverHearingStatus,
-#          levels = c("Deaf Caregivers", "Hearing Caregivers"))
-# 
 
 semantic_category_proportions <- get_category_proportions(
   df = SemanticCats,
@@ -837,12 +941,6 @@ semantic_category_proportions$CategoryCompared <- factor(
   semantic_category_proportions$CategoryCompared,
   levels = SemCatOrder
 )
-
-# semantic_category_proportions$CaregiverHearingStatus <- factor(
-#   semantic_category_proportions$CaregiverHearingStatus,
-#   levels = c("Deaf Caregivers", "Hearing Caregivers"),
-#   labels = c("Deaf", "Hearing")
-# )
 
 semantic_category_proportions$CategoryCompared <- factor(
   semantic_category_proportions$CategoryCompared)
@@ -874,13 +972,13 @@ ggplot(
     legend.direction = "vertical", # stack title above items
     legend.box.just = "center",      # center the legend contents
     legend.background = element_blank(),  # Removes legend background
-    # legend.title = element_text(size = 28, hjust = 0),
-    # legend.text = element_text(size = 28, hjust = 0),
-    # axis.text = element_text(size = 28),
-    # axis.title.x = element_text(size = 28),
-    # axis.title.y = element_text(size = 28),
-    # strip.text.x = element_text(size = 28),
-    # strip.text.y = element_text(size = 28)
+    legend.title = element_text(size = 28, hjust = 0),
+    legend.text = element_text(size = 28, hjust = 0),
+    axis.text = element_text(size = 28),
+    axis.title.x = element_text(size = 28),
+    axis.title.y = element_text(size = 28),
+    strip.text.x = element_text(size = 28),
+    strip.text.y = element_text(size = 28)
   ) +  
   geom_density_ridges(jittered_points = TRUE, alpha = 0.7, scale = 0.4,
                       point_size = 1.5,
@@ -916,4 +1014,16 @@ print(SemanticPlot)
 
 ggsave("ManuscriptImages/SemanticPlot.png", SemanticPlot, width = 16, height = 16, dpi = 300)
 
+# check how many signs that are MorphosyntacticCats$Predicates are also SemanticCats$"Action Signs" ----
+# Filter distinct Signs in MorphosyntacticCats where MorphosyntacticCategory == "Predicate"
+predicate_signs <- unique(MorphosyntacticCats$Sign[MorphosyntacticCats$MorphosyntacticCategory == "Predicate"])
 
+# Filter distinct Signs in SemanticCats where CDISemanticCategory == "Action Signs"
+action_signs <- unique(SemanticCats$Sign[SemanticCats$CDISemanticCategory == "Action Signs"])
+
+# Find intersection and count
+overlap_signs <- intersect(predicate_signs, action_signs)
+length(overlap_signs)
+
+length(predicate_signs)
+length(action_signs)
